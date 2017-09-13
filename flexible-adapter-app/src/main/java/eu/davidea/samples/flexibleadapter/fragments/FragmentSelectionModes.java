@@ -11,6 +11,7 @@ import android.view.MenuItem;
 import java.util.List;
 
 import eu.davidea.fastscroller.FastScroller;
+import eu.davidea.flexibleadapter.FlexibleAdapter;
 import eu.davidea.flexibleadapter.SelectableAdapter.Mode;
 import eu.davidea.flexibleadapter.common.FlexibleItemDecoration;
 import eu.davidea.flexibleadapter.items.AbstractFlexibleItem;
@@ -75,6 +76,7 @@ public class FragmentSelectionModes extends AbstractFragment {
 
         // Initialize Adapter and RecyclerView
         // ExampleAdapter makes use of stableIds, I strongly suggest to implement 'item.hashCode()'
+        FlexibleAdapter.useTag("SelectionModesAdapter");
         mAdapter = new ExampleAdapter(items, getActivity());
         mAdapter.setNotifyChangeOfUnfilteredItems(true) //true is the default! This will rebind new item when refreshed
                 .setMode(Mode.SINGLE);
@@ -88,7 +90,7 @@ public class FragmentSelectionModes extends AbstractFragment {
         mRecyclerView.setItemAnimator(new DefaultItemAnimator());
         // Divider item decorator with DrawOver enabled
         mRecyclerView.addItemDecoration(new FlexibleItemDecoration(getActivity())
-                .withDivider(R.drawable.divider)
+                .withDivider(R.drawable.divider, R.layout.recycler_simple_item)
                 .withDrawOver(true));
         mRecyclerView.postDelayed(new Runnable() {
             @Override
@@ -99,7 +101,7 @@ public class FragmentSelectionModes extends AbstractFragment {
 
         // Add FastScroll to the RecyclerView, after the Adapter has been attached the RecyclerView!!!
         FastScroller fastScroller = getView().findViewById(R.id.fast_scroller);
-        fastScroller.setAutoHideEnabled(true);          //true is the default value!
+        fastScroller.setAutoHideEnabled(true);        //true is the default value!
         fastScroller.setAutoHideDelayInMillis(1000L); //1000ms is the default value!
         fastScroller.setMinimumScrollThreshold(70); //0 pixel is the default value! When > 0 it mimics the fling gesture
         fastScroller.addOnScrollStateChangeListener((MainActivity) getActivity());

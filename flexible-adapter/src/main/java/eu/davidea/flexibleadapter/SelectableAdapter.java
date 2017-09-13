@@ -39,6 +39,7 @@ import eu.davidea.flexibleadapter.common.IFlexibleLayoutManager;
 import eu.davidea.flexibleadapter.utils.FlexibleUtils;
 import eu.davidea.flexibleadapter.utils.Log;
 import eu.davidea.flexibleadapter.utils.Log.Level;
+import eu.davidea.flexibleadapter.utils.Logger;
 import eu.davidea.viewholders.FlexibleViewHolder;
 
 import static eu.davidea.flexibleadapter.SelectableAdapter.Mode.IDLE;
@@ -64,6 +65,7 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
         implements FastScroller.BubbleTextCreator, FastScroller.OnScrollStateChangeListener, FastScroller.AdapterInterface {
 
     private static final String TAG = SelectableAdapter.class.getSimpleName();
+    Logger log;
 
     /**
      * Annotation interface for selection modes: {@link #IDLE}, {@link #SINGLE}, {@link #MULTI}
@@ -113,7 +115,9 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
      * @since 1.0.0
      */
     public SelectableAdapter() {
-        Log.iTag("FlexibleAdapter", "Running version %s", BuildConfig.VERSION_NAME);
+        if (Log.customTag == null) Log.useTag("FlexibleAdapter");
+        log = new Logger(Log.customTag);
+        log.i("Running version %s", BuildConfig.VERSION_NAME);
         mSelectedPositions = Collections.synchronizedSet(new TreeSet<Integer>());
         mBoundViewHolders = new HashSet<>();
         mMode = IDLE;
@@ -134,6 +138,10 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
      */
     public static void enableLogs(@Level int level) {
         Log.setLevel(level);
+    }
+
+    public static void useTag(String tag) {
+        Log.useTag(tag);
     }
 
 	/*--------------*/
@@ -223,7 +231,7 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
      * @since 2.0.0
      */
     public void setMode(@Mode int mode) {
-        Log.i("Mode %s enabled", FlexibleUtils.getModeName(mode));
+        log.i("Mode %s enabled", FlexibleUtils.getModeName(mode));
         if (mMode == SINGLE && mode == IDLE)
             clearSelection();
         this.mMode = mode;
@@ -331,7 +339,7 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
         } else {
             addSelection(position);
         }
-        Log.v("toggleSelection %s on position %s, current %s",
+        log.v("toggleSelection %s on position %s, current %s",
                 (contains ? "removed" : "added"), position, mSelectedPositions);
     }
 
@@ -388,7 +396,6 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
 
     /**
      * Sets the selection status for all items which the ViewTypes are included in the specified array.
-     * <p><b>Note:</b> All items are invalidated and rebound!</p>
      *
      * @param viewTypes The ViewTypes for which we want the selection, pass nothing to select all
      * @since 1.0.0
@@ -396,7 +403,7 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
     public void selectAll(Integer... viewTypes) {
         mSelectAll = true;
         List<Integer> viewTypesToSelect = Arrays.asList(viewTypes);
-        Log.v("selectAll ViewTypes to include %s", viewTypesToSelect);
+        log.v("selectAll ViewTypes to include %s", viewTypesToSelect);
         int positionStart = 0, itemCount = 0;
         for (int i = 0; i < getItemCount(); i++) {
             if (isSelectable(i) &&
@@ -412,7 +419,7 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
                 }
             }
         }
-        Log.d("selectAll notifyItemRangeChanged from positionStart=%s itemCount=%s", positionStart, getItemCount());
+        log.d("selectAll notifyItemRangeChanged from positionStart=%s itemCount=%s", positionStart, getItemCount());
         notifySelectionChanged(positionStart, getItemCount());
     }
 
@@ -426,9 +433,9 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
      * @since 1.0.0
      */
     public void clearSelection() {
-        Log.d("clearSelection %s", mSelectedPositions);
         // #373 - ConcurrentModificationException with Undo after multiple rapid swipe removals
         synchronized (mSelectedPositions) {
+            log.d("clearSelection %s", mSelectedPositions);
             Iterator<Integer> iterator = mSelectedPositions.iterator();
             int positionStart = 0, itemCount = 0;
             // The notification is done only on items that are currently selected.
@@ -538,8 +545,7 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
      */
     public void onSaveInstanceState(Bundle outState) {
         outState.putIntegerArrayList(TAG, new ArrayList<>(mSelectedPositions));
-        if (Log.isDebugEnabled() && getSelectedItemCount() > 0)
-            Log.d("Saving selection %s", mSelectedPositions);
+        if (getSelectedItemCount() > 0) log.d("Saving selection %s", mSelectedPositions);
     }
 
     /**
@@ -550,8 +556,7 @@ public abstract class SelectableAdapter extends RecyclerView.Adapter
      */
     public void onRestoreInstanceState(Bundle savedInstanceState) {
         mSelectedPositions.addAll(savedInstanceState.getIntegerArrayList(TAG));
-        if (Log.isDebugEnabled() && getSelectedItemCount() > 0)
-            Log.d("Restore selection %s", mSelectedPositions);
+        if (getSelectedItemCount() > 0) log.d("Restore selection %s", mSelectedPositions);
     }
 
 	/*---------------*/

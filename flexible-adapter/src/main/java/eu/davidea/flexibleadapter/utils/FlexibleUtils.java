@@ -48,6 +48,15 @@ public final class FlexibleUtils {
     public static int colorAccent = INVALID_COLOR;
 
     /**
+     * API 26
+     *
+     * @see VERSION_CODES#O
+     */
+    public static boolean hasOreo() {
+        return Build.VERSION.SDK_INT >= VERSION_CODES.O;
+    }
+
+    /**
      * API 24
      *
      * @see VERSION_CODES#N
@@ -105,19 +114,22 @@ public final class FlexibleUtils {
      * @since 5.0.0-rc1
      */
     @NonNull
-    public static String getClassName(@NonNull Object o) {
+    public static String getClassName(@Nullable Object o) {
         return o == null ? "null" : o.getClass().getSimpleName();
     }
 
     /**
      * Sets a spannable text with the accent color (if available) into the provided TextView.
-     * <p>Internally calls {@link #fetchAccentColor(Context, int)}.</p>
+     * <p>Multiple matches will be highlighted, but if the 2nd match is consecutive,
+     * the highlight is skipped.</p>
+     * Internally calls {@link #fetchAccentColor(Context, int)}.
      *
      * @param textView     the TextView to transform
      * @param originalText the original text which the transformation is applied to
      * @param constraint   the text to highlight
      * @see #highlightText(TextView, String, String, int)
-     * @since 5.0.0-rc1
+     * @since 5.0.0-rc1 Created
+     * <br>5.0.0-rc3 Multi-span
      */
     public static void highlightText(@NonNull TextView textView,
                                      @Nullable String originalText, @Nullable String constraint) {
@@ -127,6 +139,8 @@ public final class FlexibleUtils {
 
     /**
      * Sets a spannable text with any highlight color into the provided TextView.
+     * <p>Multiple matches will be highlighted, but if the 2nd match is consecutive,
+     * the highlight is skipped.</p>
      *
      * @param textView     the TextView to transform
      * @param originalText the original text which the transformation is applied to
@@ -134,19 +148,23 @@ public final class FlexibleUtils {
      * @param color        the highlight color
      * @see #fetchAccentColor(Context, int)
      * @see #highlightText(TextView, String, String)
-     * @since 5.0.0-rc1
+     * @since 5.0.0-rc1 Created
+     * <br>5.0.0-rc3 Multi-span
      */
     public static void highlightText(@NonNull TextView textView, @Nullable String originalText,
                                      @Nullable String constraint, @ColorInt int color) {
         if (originalText == null) originalText = "";
         if (constraint == null) constraint = "";
-        int i = originalText.toLowerCase(Locale.getDefault()).indexOf(constraint.toLowerCase(Locale.getDefault()));
-        if (i != -1) {
+        int start = originalText.toLowerCase(Locale.getDefault()).indexOf(constraint.toLowerCase(Locale.getDefault()));
+        if (start != -1) {
             Spannable spanText = Spannable.Factory.getInstance().newSpannable(originalText);
-            spanText.setSpan(new ForegroundColorSpan(color), i,
-                    i + constraint.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            spanText.setSpan(new StyleSpan(Typeface.BOLD), i,
-                    i + constraint.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            do {
+                int end = start + constraint.length();
+                spanText.setSpan(new ForegroundColorSpan(color), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                spanText.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                // +1 skips the consecutive span
+                start = originalText.toLowerCase(Locale.getDefault()).indexOf(constraint.toLowerCase(Locale.getDefault()), end + 1);
+            } while (start != -1);
             textView.setText(spanText, TextView.BufferType.SPANNABLE);
         } else {
             textView.setText(originalText, TextView.BufferType.NORMAL);

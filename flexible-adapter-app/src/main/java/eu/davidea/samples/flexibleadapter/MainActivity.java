@@ -9,7 +9,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.support.annotation.NonNull;
-import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.NavigationView;
 import android.support.design.widget.Snackbar;
@@ -176,7 +175,7 @@ public class MainActivity extends AppCompatActivity implements
 
         setContentView(R.layout.activity_main);
         if (BuildConfig.DEBUG) {
-            FlexibleAdapter.enableLogs(Level.DEBUG);
+            FlexibleAdapter.enableLogs(Level.VERBOSE);
         } else {
             FlexibleAdapter.enableLogs(Level.SUPPRESS);
         }
@@ -266,7 +265,7 @@ public class MainActivity extends AppCompatActivity implements
             public void onRefresh() {
                 // Passing true as parameter we always animate the changes between the old and the new data set
                 DatabaseService.getInstance().updateNewItems();
-                mSwipeRefreshLayout.setRefreshing(true);
+                mRefreshHandler.sendEmptyMessage(REFRESH_START);
                 mRefreshHandler.sendEmptyMessageDelayed(REFRESH_STOP_WITH_UPDATE, 1500L); //Simulate network time
                 mActionModeHelper.destroyActionModeIfCan();
             }
@@ -294,7 +293,7 @@ public class MainActivity extends AppCompatActivity implements
         mNavigationView.setNavigationItemSelectedListener(this);
 
         // Version
-        TextView appVersion = (TextView) mNavigationView.getHeaderView(0).findViewById(R.id.app_version);
+        TextView appVersion = mNavigationView.getHeaderView(0).findViewById(R.id.app_version);
         appVersion.setText(getString(R.string.about_version, Utils.getVersionName(this)));
     }
 
@@ -331,7 +330,6 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         hideFabSilently();
-        CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams) mFab.getLayoutParams();
 
         // Handle navigation view item clicks
         int id = item.getItemId();
@@ -742,14 +740,10 @@ public class MainActivity extends AppCompatActivity implements
     public void onItemSwipe(final int position, int direction) {
         Log.i("onItemSwipe position=%s direction=%s", position, (direction == ItemTouchHelper.LEFT ? "LEFT" : "RIGHT"));
 
-        // Option 1 FULL_SWIPE: Direct action no Undo Action
+        // FULL_SWIPE: Direct action no Undo Action.
         // Do something based on direction when item has been swiped:
-        //   A) update item, set "read" if an email etc.
-        //   B) remove the item from the adapter;
-
-        // Option 2 FULL_SWIPE: Delayed action with Undo Action
-        // Show action button and start a new Handler:
-        //   A) on time out do something based on direction (open dialog with options);
+        //   1) optional: update item, set "read" if an email, etc..
+        //   2) remove the item from the adapter
 
         // Create list for single position (only in onItemSwipe)
         List<Integer> positions = new ArrayList<>(1);
@@ -763,7 +757,7 @@ public class MainActivity extends AppCompatActivity implements
             mAdapter.setRestoreSelectionOnUndo(false);
 
         // Perform different actions
-        // Here, option 2A) is implemented
+        // Here, option 1) is implemented
         if (direction == ItemTouchHelper.LEFT) {
             message.append(getString(R.string.action_archived));
 
@@ -776,39 +770,34 @@ public class MainActivity extends AppCompatActivity implements
                 actionTextColor = getResources().getColor(R.color.material_color_orange_500);
             }
 
+            mAdapter.setPermanentDelete(false);
             new UndoHelper(mAdapter, this)
-                    .withPayload(null) //You can pass any custom object
-                    .withAction(UndoHelper.ACTION_UPDATE, new UndoHelper.SimpleActionListener() {
-                        @Override
-                        public boolean onPreAction() {
-                            // Return true to avoid default immediate deletion.
-                            // Ask to the user what to do, open a custom dialog. On option chosen,
-                            // remove the item from Adapter list as usual.
-                            return true;
-                        }
-                    })
-                    .withActionTextColor(actionTextColor)
-                    .remove(positions, findViewById(R.id.main_view), message,
+                    .withPayload(Payload.CHANGE)     //You can provide any custom object
+                    .withConsecutive(true)           //Commit the previous action
+                    .withAction(UndoHelper.ACTION_UPDATE) //Specify the action
+                    .withActionTextColor(actionTextColor) //Change color of the action text
+                    .start(positions, findViewById(R.id.main_view), R.string.action_archived,
+                            R.string.undo, UndoHelper.UNDO_TIMEOUT);
+
+            // Here, option 2) is implemented
+        } else if (direction == ItemTouchHelper.RIGHT) {
+            // Prepare for next deletion
+            message.append(getString(R.string.action_deleted));
+            mRefreshHandler.sendEmptyMessage(REFRESH_START);
+            mAdapter.setPermanentDelete(false);
+
+            new UndoHelper(mAdapter, this)
+                    .withPayload(null)     //You can provide any custom object
+                    .withConsecutive(true) //Commit the previous action
+                    .start(positions, findViewById(R.id.main_view), message,
                             getString(R.string.undo), UndoHelper.UNDO_TIMEOUT);
 
-            //Here, option 1B) is implemented
-        } else if (direction == ItemTouchHelper.RIGHT) {
-            message.append(getString(R.string.action_deleted));
-            mSwipeRefreshLayout.setRefreshing(true);
-            new UndoHelper(mAdapter, this)
-                    .withPayload(null) //You can pass any custom object
-                    .withAction(UndoHelper.ACTION_REMOVE, new UndoHelper.SimpleActionListener() {
-                        @Override
-                        public void onPostAction() {
-                            // Handle ActionMode title
-                            if (mAdapter.getSelectedItemCount() == 0)
-                                mActionModeHelper.destroyActionModeIfCan();
-                            else
-                                mActionModeHelper.updateContextTitle(mAdapter.getSelectedItemCount());
-                        }
-                    })
-                    .remove(positions, findViewById(R.id.main_view), message,
-                            getString(R.string.undo), UndoHelper.UNDO_TIMEOUT);
+            // Handle ActionMode title
+            if (mAdapter.getSelectedItemCount() == 0) {
+                mActionModeHelper.destroyActionModeIfCan();
+            } else {
+                mActionModeHelper.updateContextTitle(mAdapter.getSelectedItemCount());
+            }
         }
     }
 
@@ -843,12 +832,13 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     @Override
-    public void onUndoConfirmed(int action) {
+    public void onActionCanceled(@UndoHelper.Action int action) {
         if (action == UndoHelper.ACTION_UPDATE) {
             //TODO: Complete click animation on swiped item. NotifyItem changed to display rear view as front, so user can press undo on the item
 //			final RecyclerView.ViewHolder holder = mRecyclerView.findViewHolderForLayoutPosition(mSwipedPosition);
 //			if (holder instanceof ItemTouchHelperCallback.ViewHolderCallback) {
 //				final View view = ((ItemTouchHelperCallback.ViewHolderCallback) holder).getFrontView();
+//              view.setVisibility(View.VISIBLE);
 //				Animator animator = ObjectAnimator.ofFloat(view, "translationX", view.getTranslationX(), 0);
 //				animator.addListener(new SimpleAnimatorListener() {
 //					@Override
@@ -858,11 +848,15 @@ public class MainActivity extends AppCompatActivity implements
 //				});
 //				animator.start();
 //			}
+
+            // Custom action is restore deleted items
+            mAdapter.restoreDeletedItems();
+
         } else if (action == UndoHelper.ACTION_REMOVE) {
             // Custom action is restore deleted items
             mAdapter.restoreDeletedItems();
             // Disable Refreshing
-            mSwipeRefreshLayout.setRefreshing(false);
+            mRefreshHandler.sendEmptyMessage(REFRESH_STOP);
             // Check also selection restoration
             if (mAdapter.isRestoreWithSelection()) {
                 mActionModeHelper.restoreSelection(this);
@@ -871,9 +865,9 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     @Override
-    public void onDeleteConfirmed(int action) {
+    public void onActionConfirmed(@UndoHelper.Action int action, int event) {
         // Disable Refreshing
-        mSwipeRefreshLayout.setRefreshing(false);
+        mRefreshHandler.sendEmptyMessage(REFRESH_STOP);
         // Removing items from Database. Example:
         for (AbstractFlexibleItem adapterItem : mAdapter.getDeletedItems()) {
             // NEW! You can take advantage of AutoMap and differentiate logic by viewType using "switch" statement
@@ -933,30 +927,21 @@ public class MainActivity extends AppCompatActivity implements
 
                 // Experimenting NEW feature
                 mAdapter.setRestoreSelectionOnUndo(true);
+                mAdapter.setPermanentDelete(false);
 
-                // New Undo Helper
+                // New Undo Helper (Basic usage)
                 new UndoHelper(mAdapter, this)
                         .withPayload(Payload.CHANGE)
-                        .withAction(UndoHelper.ACTION_REMOVE, new UndoHelper.OnActionListener() {
-                            @Override
-                            public boolean onPreAction() {
-                                // Don't consume the event
-                                // OR use UndoHelper.SimpleActionListener and Override only onPostAction()
-                                return false;
-                            }
-
-                            @Override
-                            public void onPostAction() {
-                                // Enable Refreshing
-                                mRefreshHandler.sendEmptyMessage(REFRESH_START);
-                                mRefreshHandler.sendEmptyMessageDelayed(REFRESH_STOP, 5000L);
-                                // Finish the action mode
-                                mActionModeHelper.destroyActionModeIfCan();
-                            }
-                        })
-                        .remove(mAdapter.getSelectedPositions(),
+                        .start(mAdapter.getSelectedPositions(),
                                 findViewById(R.id.main_view), message,
-                                getString(R.string.undo), 20000);
+                                getString(R.string.undo), UndoHelper.UNDO_TIMEOUT);
+
+                // Enable Refreshing
+                mRefreshHandler.sendEmptyMessage(REFRESH_START);
+                mRefreshHandler.sendEmptyMessageDelayed(REFRESH_STOP, UndoHelper.UNDO_TIMEOUT);
+
+                // Finish the action mode
+                mActionModeHelper.destroyActionModeIfCan();
 
                 // We consume the event
                 return true;
