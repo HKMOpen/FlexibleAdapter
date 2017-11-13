@@ -84,7 +84,6 @@ public class FragmentHeadersSections extends AbstractFragment
         // ExampleAdapter makes use of stableIds, I strongly suggest to implement 'item.hashCode()'
         FlexibleAdapter.useTag("HeadersSectionsAdapter");
         mAdapter = new ExampleAdapter(DatabaseService.getInstance().getDatabaseList(), getActivity());
-        // Experimenting NEW features (v5.0.0)
         mAdapter.setNotifyMoveOfFilteredItems(true)
                 .setAnimationOnScrolling(DatabaseConfiguration.animateOnScrolling);
         mRecyclerView = getView().findViewById(R.id.recycler_view);
@@ -95,10 +94,10 @@ public class FragmentHeadersSections extends AbstractFragment
         // a Payload is provided. FlexibleAdapter is actually sending Payloads onItemChange.
         mRecyclerView.setItemAnimator(new DefaultItemAnimator());
         mRecyclerView.addItemDecoration(new FlexibleItemDecoration(getActivity())
-//				.addItemViewType(R.layout.recycler_header_item, 8, 8, 8, 8)
-.addItemViewType(R.layout.recycler_simple_item, 0, 8, 0, 8)
-.withSectionGapOffset(24)
-.withEdge(true));
+                //.addItemViewType(R.layout.recycler_header_item, 8, 8, 8, 8)
+                .addItemViewType(R.layout.recycler_simple_item, 0, 8, 0, 8)
+                .withSectionGapOffset(24)
+                .withEdge(true));
 
         // Add FastScroll to the RecyclerView, after the Adapter has been attached the RecyclerView!!!
         FastScroller fastScroller = getView().findViewById(R.id.fast_scroller);
@@ -135,8 +134,8 @@ public class FragmentHeadersSections extends AbstractFragment
     @Override
     public void performFabAction() {
         int position = mAdapter.getStickyPosition();
-        if (position > 0) {
-            HeaderItem header = (HeaderItem) mAdapter.getItem(position);
+        HeaderItem header = (HeaderItem) mAdapter.getItem(position);
+        if (header != null) {
             header.setTitle("New sticky title " + count++);
             mAdapter.updateItem(header);
         }
